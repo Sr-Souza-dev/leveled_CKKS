@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.polynomial import Polynomial
 from typing import Tuple, List
-from encoder import CKKSEncoder
+from src.encoder import CKKSEncoder
 
 class CkksScheme:
 
@@ -43,7 +43,7 @@ class CkksScheme:
         return evk0, evk1
 
     def reduce_polynomial(self, poly: Polynomial) -> Polynomial:
-        return poly;
+        # return poly;
         coeffs_mod_q = np.mod(poly.coef, self.q)
         reduced_coeffs = np.zeros(self.encoder.N)
         for i, coef in enumerate(coeffs_mod_q):
