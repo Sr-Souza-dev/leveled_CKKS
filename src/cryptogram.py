@@ -32,7 +32,6 @@ class Cryptogram:
 
     @staticmethod
     def reduce_polynomial(poly: PolynomialVec, level) -> PolynomialVec:
-        # return poly
         return poly % Cryptogram.params.qs[level]
     
     @staticmethod
@@ -41,9 +40,15 @@ class Cryptogram:
         Relinearize the ciphertext
         """
         d0, d1, d2 = d
+
+        print("d0: ", d0)
+        print("d1: ", d1)
+        print("d2: ", d2)
+        print("level: ", level)
+        
         evk0, evk1 = Cryptogram.eval_keys[level]
-        P0 = d0 + (evk0 * d2) / Cryptogram.params.p_scale
-        P1 = d1 + (evk1 * d2) / Cryptogram.params.p_scale
+        P0 = d0 + (evk0 * d2) // Cryptogram.params.p_scale
+        P1 = d1 + (evk1 * d2) // Cryptogram.params.p_scale
         return (Cryptogram.reduce_polynomial(P0, level), Cryptogram.reduce_polynomial(P1, level))
     
     @staticmethod
@@ -54,8 +59,8 @@ class Cryptogram:
         c0, c1 = c 
         c0 = c0 // Cryptogram.params.scale
         c1 = c1 // Cryptogram.params.scale
-        
-        return (Cryptogram.reduce_polynomial(c0, level), Cryptogram.reduce_polynomial(c1, level))
+
+        return (Cryptogram.reduce_polynomial(c0, level), Cryptogram.reduce_polynomial(c1, level), level-1)
 
     def __mod__(self, other):
         if isinstance(other, int):
@@ -88,12 +93,16 @@ class Cryptogram:
             c0, c1 = self.c
             lv = min(self.l, other.l)
 
+            # print("actual: ", self)
+            # print("other: ", other)
+
             d0 = Cryptogram.reduce_polynomial(c0 * other.c[0], lv)
             d1 = Cryptogram.reduce_polynomial(c0 * other.c[1] + c1 * other.c[0], lv)
             d2 = Cryptogram.reduce_polynomial(c1 * other.c[1], lv)
+
             c0, c1 = Cryptogram.relinearize((d0, d1, d2), lv)
-            c0, c1 = Cryptogram.rescale((c0, c1), lv-1)
-            return Cryptogram(c0, c1, lv-1)
+            c0, c1, lv = Cryptogram.rescale((c0, c1), lv)
+            return Cryptogram(c0, c1, lv)
         
         elif isinstance(other, (int, float)):
             return Cryptogram(

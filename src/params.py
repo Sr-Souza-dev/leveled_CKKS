@@ -30,15 +30,19 @@ class LWEParams:
             qs.append(qs[-1]*self.scale)
 
         self.qs = qs
-        self.p_scale = qs[0]**2
+        self.p_scale = qs[-1]
+
+        PolynomialVec.setClassProperty(N)
 
     @staticmethod
     def get_random_uniform_polynomial(N: int, desvio: float) -> PolynomialVec:
-        return PolynomialVec(np.random.randint(-desvio//2, desvio//2, N))
+        # return PolynomialVec(np.random.randint(0, 1, N), dtype=np.int64)
+
+        return PolynomialVec(np.random.randint(-desvio//2, desvio//2, N), dtype=np.int64)
     
     @staticmethod
     def get_random_normal_polynomial(N: int, desvio: float) -> PolynomialVec:
-        return PolynomialVec(np.random.normal(0, desvio, N).astype(np.int64))
+        return PolynomialVec(np.random.normal(0, desvio, N).astype(np.int64), dtype=np.int64)
     
     def generate_sk(self):
         return LWEParams.get_random_uniform_polynomial(self.N, self.qs[0])
@@ -53,9 +57,9 @@ class LWEParams:
     def generate_eval_keys(self, sk: PolynomialVec):
         eval_keys = [None]
         for i in range(self.level):
-            a = LWEParams.get_random_uniform_polynomial(self.N, self.qs[i+1])
+            a = LWEParams.get_random_uniform_polynomial(self.N, self.qs[i+1] * self.p_scale)
             e = LWEParams.get_random_normal_polynomial(self.N, self.sigma)
-            evk0 = -a * sk + e + (sk*sk) * self.p_scale
+            evk0 = (-a * sk + e + (sk*sk) * self.p_scale) % (self.qs[i+1] * self.p_scale)
             evk1 = a 
             eval_keys.append((evk0, evk1))
         
