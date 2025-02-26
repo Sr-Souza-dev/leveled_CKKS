@@ -1,10 +1,17 @@
 from typing import Generic, TypeVar, Union
 import numpy as np
+from numpy.polynomial.polynomial import polymul
+
+
+from mpmath import mp, mpf, mpc, pi, exp
+from typing import List
+
+mp.dps = 200  # Aumente conforme necessário para evitar perda de precisão
 
 T = TypeVar("T", bound=np.generic)  # Garante que seja um tipo numérico compatível com numpy
 
 class PolynomialVec(Generic[T]):
-    N = 16
+    N = 4
 
     def __init__(self, coeffs: Union[list, np.ndarray], dtype: T = np.int64):
         """
@@ -28,6 +35,7 @@ class PolynomialVec(Generic[T]):
 
     @staticmethod
     def reduce_to_ring(coeffs: np.ndarray, q: int, dtype):
+        # return coeffs
         """
         Reduz um polinômio arbitrário ao anel R = Z_q[X] / (X^N + 1).
 
@@ -43,6 +51,9 @@ class PolynomialVec(Generic[T]):
                 reduced_coeffs[i] += coef
             else:
                 reduced_coeffs[i % PolynomialVec.N] += (-1) ** (i // PolynomialVec.N) * coef
+
+        print("Received coeffs: ", coeffs)
+        print("reduced_coeffs: ", reduced_coeffs)
 
         return PolynomialVec.centered_mod(reduced_coeffs, q, dtype)
 
@@ -118,16 +129,38 @@ class PolynomialVec(Generic[T]):
         if isinstance(other, int):
             return PolynomialVec(self.coeffs * other, self.dtype)
         elif isinstance(other, PolynomialVec):
+                    """Multiplica polinômios usando DFT/IDFT implementadas manualmente."""
+        if isinstance(other, PolynomialVec):
+            # Configuração de precisão
+            original_dps = mp.dps
+            mp.dps = 100  # Precisão suficiente para coeficientes grandes
+            
             len_res = len(self.coeffs) + len(other.coeffs) - 1
             next_pow2 = 2 ** int(np.ceil(np.log2(len_res)))
+            
+            a = self._pad_coeffs(next_pow2)
+            b = other._pad_coeffs(next_pow2)
+            
+            dft_a = self._dft(a)
+            dft_b = self._dft(b)
+            product_dft = [x * y for x, y in zip(dft_a, dft_b)]
+            
+            result = self._idft(product_dft)
+            final_coeffs = [self._safe_int(x.real) for x in result[:len_res]]
+            
+            mp.dps = original_dps
+            return PolynomialVec(final_coeffs, dtype=self.dtype)
 
-            f1 = np.fft.rfft(self.coeffs, next_pow2)
-            f2 = np.fft.rfft(other.coeffs, next_pow2)
+            # len_res = len(self.coeffs) + len(other.coeffs) - 1
+            # next_pow2 = 2 ** int(np.ceil(np.log2(len_res)))
 
-            result_freq = f1 * f2
-            result_coeffs = np.fft.irfft(result_freq).real.round().astype(self.dtype)
+            # f1 = np.fft.rfft(self.coeffs, next_pow2)
+            # f2 = np.fft.rfft(other.coeffs, next_pow2)
 
-            return PolynomialVec(result_coeffs[:len_res], self.dtype)
+            # result_freq = f1 * f2
+            # result_coeffs = np.fft.irfft(result_freq).real.round().astype(self.dtype)
+
+            # return PolynomialVec(result_coeffs[:len_res], self.dtype)
         else:
             raise TypeError("A multiplicação deve ser feita entre dois polinômios ou um polinômio e um escalar.")
 
@@ -136,6 +169,35 @@ class PolynomialVec(Generic[T]):
         if not isinstance(scalar, int):
             raise TypeError("A divisão inteira só pode ser feita com um número inteiro.")
         return PolynomialVec(self.coeffs // scalar, self.dtype)
+    
+    def _pad_coeffs(self, target_len: int) -> List[mpf]:
+        pad_length = target_len - len(self.coeffs)
+        padded = list(self.coeffs) + [0] * pad_length
+        return [mpf(int(x)) for x in padded]
+
+    @staticmethod
+    def _dft(signal: List[mpf]) -> List[mpc]:
+        N = len(signal)
+        return [
+            sum(mpf(x) * exp(-2j * pi * k * n / N) 
+            for n, x in enumerate(signal))
+            for k in range(N)
+        ]
+
+    @staticmethod
+    def _idft(freq: List[mpc]) -> List[mpc]:
+        N = len(freq)
+        return [
+            sum(X * exp(2j * pi * k * n / N) 
+            for k, X in enumerate(freq)) / N
+            for n in range(N)
+        ]
+
+    @staticmethod
+    def _safe_int(value: mpf) -> int:
+        """Converte mpf para int sem overflow."""
+        return int(mp.nstr(value, mp.dps, strip_zeros=False).split('.')[0])
+
 
     def __mod__(self, q: int):
         """Reduz os coeficientes módulo q."""

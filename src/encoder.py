@@ -115,13 +115,20 @@ class CKKSEncoder:
             scale it, project it on the lattice of sigma(R), 
             and performs sigma inverse.
         """
+        print("\n\nEncoding Process")
+        print("Input: ", z)
         hz = self.pi_inverse(z)
+        print("hz: ", hz)
         scaled_hz = self.scale * hz
+        print("scaled_hz: ", scaled_hz)
         rounded_scaled_hz = self.sigma_R_discretization(scaled_hz)
+        print("rounded_scaled_hz: ", rounded_scaled_hz)
         coeff = self.sigma_inverse(rounded_scaled_hz).coeffs
+        print("coeff: ", coeff)
 
         # Round it afterwards due to numerical imprecision
         coeff = np.round(np.real(coeff)).astype(np.int64)
+        print("coeff rounded: ", coeff, end="\n\n")
 
         # coeff = np.round(np.multiply(z,self.scale)).astype(np.int64)
         poly = PolynomialVec(coeff, dtype=np.int64)
